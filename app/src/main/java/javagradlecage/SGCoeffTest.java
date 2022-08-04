@@ -25,13 +25,14 @@ import tech.tablesaw.api.DoubleColumn;
 
 //import com.github.psambit9791.jdsp.*;
 import com.github.psambit9791.jdsp.signal.Convolution;
+import com.github.psambit9791.jdsp.signal.CrossCorrelation;
 
 public class SGCoeffTest {
     public static void main(String args[]) throws IOException, WavFileException, FileFormatNotSupportedException{
         //get savgol coefficients
-        int window_length = 49;
-        int polyorder = 3;
-        int deriv = 0;
+        int window_length = 49;     // width in librosa delta
+        int polyorder = 1;
+        int deriv = 1;              // Order in librosa delta
         int delta = 1;
         //int pos = -1;
         //String use = "conv";
@@ -57,6 +58,7 @@ public class SGCoeffTest {
         //System.out.println(t_MFCC.column(0).print());
 
         savgol_filter(t_MFCC, window_length, polyorder, deriv, delta, axis, mode, cval);
+        //savgol_filter(t_MFCC, window_length, polyorder, 2, delta, axis, mode, cval);
 
         /* //convolve test --> successful
         double[] input = {2, 8, 0, 4, 1, 9, 9, 0};
@@ -79,7 +81,7 @@ public class SGCoeffTest {
 
         Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, -1, "conv");
 
-        //System.out.println(coeffs.print());
+        System.out.println(coeffs.print());
 
         //x = x.transpose();                              //prüfen ob korrekt!!!!!!!!!!!! Ich meine aber, das diese Ausrichtung richtig ist.
         int x_size = x.columnCount() * x.rowCount();
@@ -112,7 +114,8 @@ public class SGCoeffTest {
         //System.out.println(y.column(0).print());
         //System.out.println(y.transpose().column(0).print());
         //System.out.println(y.transpose().print());
-        System.out.println(y.column(0).print());
+        //System.out.println(y.column(0).print());
+        System.out.println(y.transpose().column((int)Math.floor(window_length/2)).print()); //example for selection of values explained in convolve1d_jdsp; use these values in window_length size array to rebuild python librosa delta function
         //System.out.println(y.print());
 
         return y;
@@ -139,10 +142,20 @@ public class SGCoeffTest {
         } */
 
         for (int i = 0; i < d_input.length; i++) {
+            //System.out.println("debug mfcc: "+d_input[i][0]);
             Convolution conv = new Convolution(d_input[i], d_weights[0]);
             double[] d_output = conv.convolve1d(mode);
             output.addColumns(convertArrayToColumn("conv_"+i, d_output));
         }
+
+
+        //the original python librosa function takes the middle element of the output (y) and fills the output array of size=width with this value
+        //python code
+        //import math
+        //output_size = output.size
+        //output[math.floor(output_size/2)]
+
+
 
         //System.out.println(output.print());
         
@@ -164,6 +177,24 @@ public class SGCoeffTest {
             System.out.println(d_output[i]);
         } */
         //debug end
+
+        /* System.out.println("---------correlation test------------");
+        TableConverter out_conv = new TableConverter(output.transpose());
+        double[][] d_output = out_conv.doubleMatrix();
+
+        for (int i = 0; i < d_output[0].length; i++) {
+            System.out.println(d_output[0][i]);
+        }
+
+        CrossCorrelation corr = new CrossCorrelation(d_output[0]);
+        double[] cross_corr = corr.crossCorrelate();
+
+        System.out.println("corr size: "+cross_corr.length);
+        for (int i = 0; i < cross_corr.length; i++) {
+            System.out.println(cross_corr[i]);
+        }
+
+        System.out.println("---------END correlation test------------"); */
 
         return output;
     }
