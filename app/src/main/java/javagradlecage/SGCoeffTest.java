@@ -3,11 +3,11 @@ package javagradlecage;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.columns.numbers.fillers.DoubleRangeIterable;
 import tech.tablesaw.conversion.TableConverter;
-import tech.tablesaw.index.Index;
+//import tech.tablesaw.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
+//import java.util.Comparator;
 
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.DecompositionSolver;
@@ -21,9 +21,9 @@ import com.jlibrosa.audio.exception.FileFormatNotSupportedException;
 import com.jlibrosa.audio.wavFile.WavFileException;
 
 import tech.tablesaw.api.DoubleColumn;
-import tech.tablesaw.api.FloatColumn;
+//import tech.tablesaw.api.FloatColumn;
 
-import com.github.psambit9791.jdsp.*;
+//import com.github.psambit9791.jdsp.*;
 import com.github.psambit9791.jdsp.signal.Convolution;
 
 public class SGCoeffTest {
@@ -33,15 +33,15 @@ public class SGCoeffTest {
         int polyorder = 3;
         int deriv = 0;
         int delta = 1;
-        int pos = -1;
-        String use = "conv";
+        //int pos = -1;
+        //String use = "conv";
 
         int axis = -1;
         String mode = "interp";
         double cval = 0.0;
 
-        Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, pos, use);
-        System.out.println(coeffs);
+        //Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, pos, use);
+        //System.out.println(coeffs);
 
         //get MFCC from cough
 
@@ -53,10 +53,21 @@ public class SGCoeffTest {
 
         Table t_MFCC = convertMatrixToTable("coeffs", convertFloatsToDoubles2D(MFCC));
 
-        System.out.println(t_MFCC.shape());
-        System.out.println(t_MFCC.column(0).print());
+        //System.out.println(t_MFCC.shape());
+        //System.out.println(t_MFCC.column(0).print());
 
         savgol_filter(t_MFCC, window_length, polyorder, deriv, delta, axis, mode, cval);
+
+        /* //convolve test --> successful
+        double[] input = {2, 8, 0, 4, 1, 9, 9, 0};
+        double[] weights = {1, 3};
+
+        Convolution conv = new Convolution(input, weights);
+        double[] output = conv.convolve1d("constant");
+
+        for (int i = 0; i < output.length; i++) {
+            System.out.println(output[i]);
+        } */
     }
 
     public static Table savgol_filter(Table x, int window_length, int polyorder, int deriv, double delta, int axis, String mode, double cval){
@@ -68,11 +79,14 @@ public class SGCoeffTest {
 
         Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, -1, "conv");
 
-        System.out.println(coeffs.print());
+        //System.out.println(coeffs.print());
 
+        //x = x.transpose();                              //prüfen ob korrekt!!!!!!!!!!!! Ich meine aber, das diese Ausrichtung richtig ist.
         int x_size = x.columnCount() * x.rowCount();
 
+        //System.out.println(x.rowCount());
         //System.out.println(x_size);
+        //System.out.println(x.column(0).print());
 
         Table y = Table.create();
 
@@ -91,11 +105,15 @@ public class SGCoeffTest {
         }
         else{
             //convolve1d
-            y = convolve1d_jdsp(x, coeffs, "constant");
+            y = convolve1d_jdsp(x, coeffs, mode); //mode = mode (python function); cval not implemented in jdsp
         }
 
         //debug
-        System.out.println(y);
+        //System.out.println(y.column(0).print());
+        //System.out.println(y.transpose().column(0).print());
+        //System.out.println(y.transpose().print());
+        System.out.println(y.column(0).print());
+        //System.out.println(y.print());
 
         return y;
     }
@@ -106,9 +124,19 @@ public class SGCoeffTest {
 
         TableConverter conv_input = new TableConverter(input);
         double[][] d_input = conv_input.doubleMatrix();
+        
+        /* for (int i = 0; i < d_input[0].length; i++) {
+            System.out.println(d_input[0][i]);
+        } */
+
+        weights = weights.transpose();
 
         TableConverter conv_weights = new TableConverter(weights);
         double[][] d_weights = conv_weights.doubleMatrix();
+
+        /* for (int i = 0; i < d_weights[0].length; i++) {
+            System.out.println(d_weights[0][i]);
+        } */
 
         for (int i = 0; i < d_input.length; i++) {
             Convolution conv = new Convolution(d_input[i], d_weights[0]);
@@ -140,7 +168,7 @@ public class SGCoeffTest {
         return output;
     }
 
-    public static Table convolve1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //void
+    /* public static Table convolve1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //void
 
         weights = reverse1dTable(weights);
         origin = -origin;
@@ -149,7 +177,7 @@ public class SGCoeffTest {
 
         if(weights.rowCount() % 2 == 0){
             origin -= 1;
-        }
+        } */
 
         /* double[] correlate1d = correlate1d(input, weights, axis, output, mode, cval, origin);
         System.out.println("Correlated");
@@ -158,10 +186,10 @@ public class SGCoeffTest {
         }
         System.out.println(correlate1d.length); */
 
-        return correlate1d(input, weights, axis, output, mode, cval, origin);
-    }
+        /* return correlate1d(input, weights, axis, output, mode, cval, origin);
+    } */
 
-    public static Table correlate1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //double[]
+    //public static Table correlate1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //double[]
 
         /* TableConverter conv_input = new TableConverter(input);
         double[][] d_input = conv_input.doubleMatrix();
@@ -175,7 +203,7 @@ public class SGCoeffTest {
 
         //System.out.println(input.shape());
 
-        Table corr_output = Table.create();
+        /* Table corr_output = Table.create();
         float[] output_column = new float[input.rowCount()]; 
         Arrays.fill(output_column, 0, input.rowCount(), (float)(0.0));
         for (int i = 0; i < input.columnCount(); i++) {
@@ -186,10 +214,10 @@ public class SGCoeffTest {
         //System.out.println(corr_output.shape());
 
         return null;
-    }
+    } */
 
     //zum testen ausm netz. scheint nicht das richtige zu sein
-    private static double[] correlate1d_func(double[] input, double[] weights) {
+    /* private static double[] correlate1d_func(double[] input, double[] weights) {
         double[] output = new double[input.length];
         for (int i = 0; i < input.length; i++) {
             double sum = 0.0;
@@ -207,7 +235,7 @@ public class SGCoeffTest {
         }
 
         return output;
-    }
+    } */
 
     public static Table reverse1dTable(Table table){
 
