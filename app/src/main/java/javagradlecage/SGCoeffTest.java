@@ -1,6 +1,7 @@
 package javagradlecage;
 
 import tech.tablesaw.api.Table;
+import tech.tablesaw.columns.Column;
 import tech.tablesaw.columns.numbers.fillers.DoubleRangeIterable;
 import tech.tablesaw.conversion.TableConverter;
 //import tech.tablesaw.index.Index;
@@ -20,26 +21,27 @@ import com.jlibrosa.audio.JLibrosa;
 import com.jlibrosa.audio.exception.FileFormatNotSupportedException;
 import com.jlibrosa.audio.wavFile.WavFileException;
 
+import it.unimi.dsi.fastutil.doubles.DoubleIterator;
 import tech.tablesaw.api.DoubleColumn;
 //import tech.tablesaw.api.FloatColumn;
 
 //import com.github.psambit9791.jdsp.*;
 import com.github.psambit9791.jdsp.signal.Convolution;
-import com.github.psambit9791.jdsp.signal.CrossCorrelation;
+//import com.github.psambit9791.jdsp.signal.CrossCorrelation;
 
 public class SGCoeffTest {
     public static void main(String args[]) throws IOException, WavFileException, FileFormatNotSupportedException{
         //get savgol coefficients
-        int window_length = 49;     // width in librosa delta
+        /* int window_length = 49;     // width in librosa delta
         int polyorder = 1;
         int deriv = 1;              // Order in librosa delta
         int delta = 1;
-        //int pos = -1;
-        //String use = "conv";
-
         int axis = -1;
         String mode = "interp";
-        double cval = 0.0;
+        double cval = 0.0; */
+
+        //int pos = -1;
+        //String use = "conv";
 
         //Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, pos, use);
         //System.out.println(coeffs);
@@ -57,8 +59,11 @@ public class SGCoeffTest {
         //System.out.println(t_MFCC.shape());
         //System.out.println(t_MFCC.column(0).print());
 
-        savgol_filter(t_MFCC, window_length, polyorder, deriv, delta, axis, mode, cval);
-        //savgol_filter(t_MFCC, window_length, polyorder, 2, delta, axis, mode, cval);
+        //savgol_filter(t_MFCC, 49, 1, 1, 1, -1, "interp", 0.0);
+        //savgol_filter(t_MFCC, 49, 2, 2, 1, -1, "interp", 0.0);
+
+        delta(t_MFCC, t_MFCC.columnCount(), 1, -1);
+        delta(t_MFCC, t_MFCC.columnCount(), 2, -1);
 
         /* //convolve test --> successful
         double[] input = {2, 8, 0, 4, 1, 9, 9, 0};
@@ -72,6 +77,17 @@ public class SGCoeffTest {
         } */
     }
 
+    public static void delta(Table data, int width, int order, int axis){
+
+        int polyorder = order;
+        int deriv = order;
+        int delta = 1;
+        double cval = 0.0;
+        String mode = "interp";
+
+        savgol_filter(data, width, polyorder, deriv, delta, axis, mode, cval);
+    }
+
     public static Table savgol_filter(Table x, int window_length, int polyorder, int deriv, double delta, int axis, String mode, double cval){
 
         String[] modes = {"mirror", "constant", "nearest", "interp", "wrap"};
@@ -81,9 +97,9 @@ public class SGCoeffTest {
 
         Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, -1, "conv");
 
-        System.out.println(coeffs.print());
+        //System.out.println(coeffs.print());
 
-        //x = x.transpose();                              //prüfen ob korrekt!!!!!!!!!!!! Ich meine aber, das diese Ausrichtung richtig ist.
+        //x = x.transpose();                              //testing for correct matrix orientation
         int x_size = x.columnCount() * x.rowCount();
 
         //System.out.println(x.rowCount());
@@ -94,7 +110,7 @@ public class SGCoeffTest {
 
         if(mode == "interp"){
             if(window_length > x_size){
-                throw new IllegalArgumentException("If mode is 'interp', window_length must be less than or equal to the size of x."); //falscher fehlertyp
+                throw new IllegalArgumentException("If mode is 'interp', window_length must be less than or equal to the size of x."); //wrong error type; fix later
             }
             //convolve1d
             //y = convolve1d(x, coeffs, axis, -1, mode="constant", cval=0.0, 0); //coeffs.doubleColumn(0)
@@ -106,7 +122,7 @@ public class SGCoeffTest {
             y = convolve1d_jdsp(x, coeffs, "constant");
         }
         else{
-            //convolve1d
+            // not actually reached b/c right now only mode=interp is considered
             y = convolve1d_jdsp(x, coeffs, mode); //mode = mode (python function); cval not implemented in jdsp
         }
 
@@ -115,10 +131,53 @@ public class SGCoeffTest {
         //System.out.println(y.transpose().column(0).print());
         //System.out.println(y.transpose().print());
         //System.out.println(y.column(0).print());
-        System.out.println(y.transpose().column((int)Math.floor(window_length/2)).print()); //example for selection of values explained in convolve1d_jdsp; use these values in window_length size array to rebuild python librosa delta function
+        //System.out.println(y.transpose().column((int)Math.floor(window_length/2)).print()); //example for selection of values explained in convolve1d_jdsp; use these values in window_length size array to rebuild python librosa delta function
         //System.out.println(y.print());
 
+        y = createPythonLibrosaDeltaValues(y);
+
+        System.out.println(y.print());
+        System.out.println(y.shape());
+
         return y;
+    }
+
+    /*
+     * This function takes the convolved values from y = convolve1d_jdsp() and reorganizes the data to
+     * python librosa.data equivalent results. I don't know why librosa does that and how 
+     * this solution is monst probably false. I just figured this solution by accident: 
+     * 
+     * It takes the center element of y-rows and refills this row all along with this elements "output[Math.floor(y-row_size/2)]"
+     */
+    public static Table createPythonLibrosaDeltaValues(Table convolved_data){
+
+        Table results = Table.create();
+
+        int window_length = convolved_data.transpose().columnCount();
+        int data_rows = convolved_data.transpose().rowCount();
+
+        DoubleColumn center_elements = (DoubleColumn)convolved_data.transpose().column((int)Math.floor(window_length/2));
+
+        //System.out.println(center_elements.print());
+
+        /* int i = 0;
+        center_elements.forEach( value -> {
+            DoubleColumn col = DoubleColumn.create("res_"+i, new Double[window_length]).fillWith(value);
+            results.addColumns(col);
+        }); */
+
+        for (int i = 0; i < data_rows; i++) {
+            double value = center_elements.getDouble(i);
+            //System.out.println(value);
+            DoubleColumn col = DoubleColumn.create("res_"+i, new Double[window_length]).fillWith(value);
+            results.addColumns(col);
+        }
+
+        results = results.transpose();
+
+        //System.out.println(results.print());
+
+        return results;
     }
 
     public static Table convolve1d_jdsp(Table input, Table weights, String mode){
@@ -323,7 +382,7 @@ public class SGCoeffTest {
         x.addColumns(x_column.fillWith(DoubleRangeIterable.range(-pos, window_length - pos)));
 
         if(use == "conv"){
-            x_column.sortDescending(); //wahrscheinlich falsche sortierung, da nicht reserved, sondern sortiert nach groeße: wobei es in diesem fall passen sollte
+            x_column.sortDescending(); //just sorted descending -> should be reversed; this just works here b/c of values nature. Fix later
         }
         
         Table order = Table.create();
