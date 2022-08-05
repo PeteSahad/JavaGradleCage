@@ -1,14 +1,12 @@
 package javagradlecage;
 
 import tech.tablesaw.api.Table;
-import tech.tablesaw.columns.Column;
 import tech.tablesaw.columns.numbers.fillers.DoubleRangeIterable;
 import tech.tablesaw.conversion.TableConverter;
-//import tech.tablesaw.index.Index;
+import tech.tablesaw.api.DoubleColumn;
 
 import java.io.IOException;
 import java.util.Arrays;
-//import java.util.Comparator;
 
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.DecompositionSolver;
@@ -21,33 +19,12 @@ import com.jlibrosa.audio.JLibrosa;
 import com.jlibrosa.audio.exception.FileFormatNotSupportedException;
 import com.jlibrosa.audio.wavFile.WavFileException;
 
-import it.unimi.dsi.fastutil.doubles.DoubleIterator;
-import tech.tablesaw.api.DoubleColumn;
-//import tech.tablesaw.api.FloatColumn;
-
-//import com.github.psambit9791.jdsp.*;
 import com.github.psambit9791.jdsp.signal.Convolution;
-//import com.github.psambit9791.jdsp.signal.CrossCorrelation;
 
 public class SGCoeffTest {
     public static void main(String args[]) throws IOException, WavFileException, FileFormatNotSupportedException{
-        //get savgol coefficients
-        /* int window_length = 49;     // width in librosa delta
-        int polyorder = 1;
-        int deriv = 1;              // Order in librosa delta
-        int delta = 1;
-        int axis = -1;
-        String mode = "interp";
-        double cval = 0.0; */
-
-        //int pos = -1;
-        //String use = "conv";
-
-        //Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, pos, use);
-        //System.out.println(coeffs);
 
         //get MFCC from cough
-
         String cough_sample = "data/audio_test/Wu0427/cough_0.wav";
 
         JLibrosa librosa = new JLibrosa();
@@ -56,25 +33,9 @@ public class SGCoeffTest {
 
         Table t_MFCC = convertMatrixToTable("coeffs", convertFloatsToDoubles2D(MFCC));
 
-        //System.out.println(t_MFCC.shape());
-        //System.out.println(t_MFCC.column(0).print());
-
-        //savgol_filter(t_MFCC, 49, 1, 1, 1, -1, "interp", 0.0);
-        //savgol_filter(t_MFCC, 49, 2, 2, 1, -1, "interp", 0.0);
-
+        //get MFCC delta and delta-delta features
         delta(t_MFCC, t_MFCC.columnCount(), 1, -1);
         delta(t_MFCC, t_MFCC.columnCount(), 2, -1);
-
-        /* //convolve test --> successful
-        double[] input = {2, 8, 0, 4, 1, 9, 9, 0};
-        double[] weights = {1, 3};
-
-        Convolution conv = new Convolution(input, weights);
-        double[] output = conv.convolve1d("constant");
-
-        for (int i = 0; i < output.length; i++) {
-            System.out.println(output[i]);
-        } */
     }
 
     public static void delta(Table data, int width, int order, int axis){
@@ -97,14 +58,7 @@ public class SGCoeffTest {
 
         Table coeffs = savgol_coeffs(window_length, polyorder, deriv, delta, -1, "conv");
 
-        //System.out.println(coeffs.print());
-
-        //x = x.transpose();                              //testing for correct matrix orientation
         int x_size = x.columnCount() * x.rowCount();
-
-        //System.out.println(x.rowCount());
-        //System.out.println(x_size);
-        //System.out.println(x.column(0).print());
 
         Table y = Table.create();
 
@@ -112,27 +66,12 @@ public class SGCoeffTest {
             if(window_length > x_size){
                 throw new IllegalArgumentException("If mode is 'interp', window_length must be less than or equal to the size of x."); //wrong error type; fix later
             }
-            //convolve1d
-            //y = convolve1d(x, coeffs, axis, -1, mode="constant", cval=0.0, 0); //coeffs.doubleColumn(0)
-            //fit:edge
-            
-            //convolve1d(x, coeffs, axis, -1, mode="constant", cval=0.0, 0); //testing
-
-            //test with jdsp
             y = convolve1d_jdsp(x, coeffs, "constant");
         }
         else{
             // not actually reached b/c right now only mode=interp is considered
             y = convolve1d_jdsp(x, coeffs, mode); //mode = mode (python function); cval not implemented in jdsp
         }
-
-        //debug
-        //System.out.println(y.column(0).print());
-        //System.out.println(y.transpose().column(0).print());
-        //System.out.println(y.transpose().print());
-        //System.out.println(y.column(0).print());
-        //System.out.println(y.transpose().column((int)Math.floor(window_length/2)).print()); //example for selection of values explained in convolve1d_jdsp; use these values in window_length size array to rebuild python librosa delta function
-        //System.out.println(y.print());
 
         y = createPythonLibrosaDeltaValues(y);
 
@@ -144,8 +83,8 @@ public class SGCoeffTest {
 
     /*
      * This function takes the convolved values from y = convolve1d_jdsp() and reorganizes the data to
-     * python librosa.data equivalent results. I don't know why librosa does that and how 
-     * this solution is monst probably false. I just figured this solution by accident: 
+     * python librosa.delta equivalent results. I don't know why librosa does that, and I know 
+     * this solution is most probably false. I just figured this solution by accident: 
      * 
      * It takes the center element of y-rows and refills this row all along with this elements "output[Math.floor(y-row_size/2)]"
      */
@@ -158,24 +97,13 @@ public class SGCoeffTest {
 
         DoubleColumn center_elements = (DoubleColumn)convolved_data.transpose().column((int)Math.floor(window_length/2));
 
-        //System.out.println(center_elements.print());
-
-        /* int i = 0;
-        center_elements.forEach( value -> {
-            DoubleColumn col = DoubleColumn.create("res_"+i, new Double[window_length]).fillWith(value);
-            results.addColumns(col);
-        }); */
-
         for (int i = 0; i < data_rows; i++) {
             double value = center_elements.getDouble(i);
-            //System.out.println(value);
             DoubleColumn col = DoubleColumn.create("res_"+i, new Double[window_length]).fillWith(value);
             results.addColumns(col);
         }
 
         results = results.transpose();
-
-        //System.out.println(results.print());
 
         return results;
     }
@@ -187,145 +115,19 @@ public class SGCoeffTest {
         TableConverter conv_input = new TableConverter(input);
         double[][] d_input = conv_input.doubleMatrix();
         
-        /* for (int i = 0; i < d_input[0].length; i++) {
-            System.out.println(d_input[0][i]);
-        } */
-
         weights = weights.transpose();
 
         TableConverter conv_weights = new TableConverter(weights);
         double[][] d_weights = conv_weights.doubleMatrix();
 
-        /* for (int i = 0; i < d_weights[0].length; i++) {
-            System.out.println(d_weights[0][i]);
-        } */
-
         for (int i = 0; i < d_input.length; i++) {
-            //System.out.println("debug mfcc: "+d_input[i][0]);
             Convolution conv = new Convolution(d_input[i], d_weights[0]);
             double[] d_output = conv.convolve1d(mode);
             output.addColumns(convertArrayToColumn("conv_"+i, d_output));
         }
 
-
-        //the original python librosa function takes the middle element of the output (y) and fills the output array of size=width with this value
-        //python code
-        //import math
-        //output_size = output.size
-        //output[math.floor(output_size/2)]
-
-
-
-        //System.out.println(output.print());
-        
-        //Convolution conv = new Convolution(d_input[0], d_weights[0]);
-        //double[] d_output = conv.convolve1d("constant");
-
-        //debug
-        /* System.out.println("mfcc");
-        for (int i = 0; i < d_input.length; i++) {
-            System.out.println(d_input[i][0]);
-        }
-        System.out.println("weights");
-        for (int i = 0; i < d_weights.length; i++) {
-            System.out.println(d_weights[i][0]);
-        }
-        System.out.println("convolution");
-        System.out.println("conv size="+d_output.length);
-        for (int i = 0; i < d_output.length; i++) {
-            System.out.println(d_output[i]);
-        } */
-        //debug end
-
-        /* System.out.println("---------correlation test------------");
-        TableConverter out_conv = new TableConverter(output.transpose());
-        double[][] d_output = out_conv.doubleMatrix();
-
-        for (int i = 0; i < d_output[0].length; i++) {
-            System.out.println(d_output[0][i]);
-        }
-
-        CrossCorrelation corr = new CrossCorrelation(d_output[0]);
-        double[] cross_corr = corr.crossCorrelate();
-
-        System.out.println("corr size: "+cross_corr.length);
-        for (int i = 0; i < cross_corr.length; i++) {
-            System.out.println(cross_corr[i]);
-        }
-
-        System.out.println("---------END correlation test------------"); */
-
         return output;
     }
-
-    /* public static Table convolve1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //void
-
-        weights = reverse1dTable(weights);
-        origin = -origin;
-        
-        System.out.println(weights);
-
-        if(weights.rowCount() % 2 == 0){
-            origin -= 1;
-        } */
-
-        /* double[] correlate1d = correlate1d(input, weights, axis, output, mode, cval, origin);
-        System.out.println("Correlated");
-        for (int i = 0; i < correlate1d.length; i++) {
-            System.out.println(correlate1d[i]);
-        }
-        System.out.println(correlate1d.length); */
-
-        /* return correlate1d(input, weights, axis, output, mode, cval, origin);
-    } */
-
-    //public static Table correlate1d(Table input, Table weights, int axis, int output, String mode, double cval, int origin){ //double[]
-
-        /* TableConverter conv_input = new TableConverter(input);
-        double[][] d_input = conv_input.doubleMatrix();
-
-        TableConverter conv_weights = new TableConverter(weights);
-        double[][] d_weights = conv_weights.doubleMatrix();
-
-        return correlate1d_func(d_input[0], d_weights[0]); */
-
-        //output=None, input=input
-
-        //System.out.println(input.shape());
-
-        /* Table corr_output = Table.create();
-        float[] output_column = new float[input.rowCount()]; 
-        Arrays.fill(output_column, 0, input.rowCount(), (float)(0.0));
-        for (int i = 0; i < input.columnCount(); i++) {
-            FloatColumn t_float_column = FloatColumn.create("zero_"+i, output_column);
-            corr_output.addColumns(t_float_column);
-        }
-
-        //System.out.println(corr_output.shape());
-
-        return null;
-    } */
-
-    //zum testen ausm netz. scheint nicht das richtige zu sein
-    /* private static double[] correlate1d_func(double[] input, double[] weights) {
-        double[] output = new double[input.length];
-        for (int i = 0; i < input.length; i++) {
-            double sum = 0.0;
-            int radius = weights.length / 2;
-            for (int j = 0; j < weights.length; j++) {
-                if (i - radius + j < 0) {
-                    sum += input[-(i - radius + j) - 1] * weights[j];
-                } else if (i - radius + j >= input.length) {
-                    sum += input[2 * input.length - (i - radius + j) - 1] * weights[j];
-                } else {
-                    sum += input[i - radius + j] * weights[j];
-                }
-            }
-            output[i] = sum;
-        }
-
-        return output;
-    } */
 
     public static Table reverse1dTable(Table table){
 
@@ -382,7 +184,7 @@ public class SGCoeffTest {
         x.addColumns(x_column.fillWith(DoubleRangeIterable.range(-pos, window_length - pos)));
 
         if(use == "conv"){
-            x_column.sortDescending(); //just sorted descending -> should be reversed; this just works here b/c of values nature. Fix later
+            x_column.sortDescending();          //just sorted descending -> should be reversed; this just works here b/c of values nature. Fix later
         }
         
         Table order = Table.create();
@@ -433,18 +235,6 @@ public class SGCoeffTest {
 
         return table.transpose();
     }
-
-    /* public static Table convertDoubleArrayToTable(String name, double[] matrix){
-        Table table = Table.create();
-
-        int i = 0;
-        for (double column : matrix) {
-            table.addColumns(DoubleColumn.create(name+"_"+i, column));
-            i++;
-        }
-
-        return table;
-    } */
 
     public static double[][] convertFloatsToDoubles2D(float[][] input){
         if (input == null)
