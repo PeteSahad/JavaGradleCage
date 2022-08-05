@@ -25,11 +25,14 @@ public class SGCoeffTest {
     public static void main(String args[]) throws IOException, WavFileException, FileFormatNotSupportedException{
 
         //get MFCC from cough
+        int sample_rate = 48000;
+        int N_MFCC = 26;
+
         String cough_sample = "data/audio_test/Wu0427/cough_0.wav";
 
         JLibrosa librosa = new JLibrosa();
-        float[] original_features = librosa.loadAndRead(cough_sample, 48000, -1);
-        float[][] MFCC = librosa.generateMFCCFeatures(original_features, FeatureExtraction.sr, FeatureExtraction.N_MFCC);
+        float[] original_features = librosa.loadAndRead(cough_sample, sample_rate, -1);
+        float[][] MFCC = librosa.generateMFCCFeatures(original_features, sample_rate, N_MFCC);
 
         Table t_MFCC = convertMatrixToTable("coeffs", convertFloatsToDoubles2D(MFCC));
 
