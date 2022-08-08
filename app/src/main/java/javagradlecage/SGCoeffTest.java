@@ -78,7 +78,7 @@ public class SGCoeffTest {
 
         y = createPythonLibrosaDeltaValues(y);
 
-        System.out.println(y.print());
+        System.out.println(y.column(0).print());
         System.out.println(y.shape());
 
         return y;

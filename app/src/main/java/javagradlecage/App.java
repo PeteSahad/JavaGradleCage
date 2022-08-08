@@ -8,13 +8,6 @@ import tech.tablesaw.api.Row;
 import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
 
-import java.io.File;
-
-import com.jlibrosa.audio.JLibrosa;
-
-import org.apache.commons.math3.complex.Complex;
-import org.checkerframework.checker.units.qual.Length;
-
 public class App {
 
     static Integer N_MFCC = 26;
@@ -37,283 +30,30 @@ public class App {
             feat_colNames.append("MFCC_2D_"+i);
         }
 
-        /* for (String string : feat_colNames) {
+        for (String string : feat_colNames) {
             System.out.println(string);
-        } */
-
-        //float[][] originalAudioFeatures = FeatureExtraction.getAudioFeatures(new File(audio_file_path).listFiles());
-        float[] originalAudioFeaturesFlat = FeatureExtraction.getAudioFeaturesFlat(new File(audio_file_path).listFiles());
-
-        System.out.println("DEBUG: "+originalAudioFeaturesFlat[0]);
-        System.out.println("DEBUG: "+originalAudioFeaturesFlat[1]);
-        System.out.println("DEBUG: "+originalAudioFeaturesFlat[1337]);
-        System.out.println("DEBUG: "+originalAudioFeaturesFlat[12000]);
-
-        /* int size_of = 0;
-        System.out.println("original features: "+originalAudioFeatures.length);
-        for (int i = 0; i < originalAudioFeatures.length; i++) {
-            //System.out.println(originalAudioFeatures[i].length);
-            size_of += originalAudioFeatures[i].length;
-        }
-        System.out.println(size_of); */
-
-        
-        
-        //get mean MFCC for all audio
-        /* JLibrosa librosa_1 = new JLibrosa();
-        float[] allAudioMeanMFCC = librosa_1.generateMeanMFCCFeatures(originalAudioFeatures, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame);
-
-        System.out.println("Size: "+allAudioMeanMFCC.length);
-        for (int i = 0; i < allAudioMeanMFCC.length; i++) {
-            System.out.println(allAudioMeanMFCC[i]);
-        } */
-        
-        Table df = Table.create("audio features");
-
-        df.addColumns(feat_colNames);
-
-        /* int count = df.columnCount();
-
-        System.out.println(count);
-        System.out.println(df.print());
-
-        Table df_trans = df.transpose();
-
-        System.out.println(df_trans.print()); */
-
-
-
-        /* String[] animals = {"bear", "cat", "giraffe"};
-        double[] cuteness = {90.1, 84.3, 99.7};
-
-        Table cuteAnimals =
-            Table.create("Cute Animals")
-                .addColumns(
-                    StringColumn.create("Animal types", animals),
-                    DoubleColumn.create("rating", cuteness));
-
-        String tab = cuteAnimals.printAll();
-        System.out.println(tab); */
-
-        //testing
-        JLibrosa librosa = new JLibrosa();
-
-        System.out.println( "\nhop_length: "+librosa.getHop_length()+
-                            "\nn_fft (n_frame): "+librosa.getN_fft()+
-                            "\nn_mels: "+librosa.getN_mels()+
-                            "\nsr: "+librosa.getSampleRate()
-        );
-        
-
-        /* //stft steps inbetween. Not needed when directly using meanMFCC (however, omitting the henning window)
-
-        //Complex[][] stft = librosa.generateSTFTFeaturesWithPadOption(originalAudioFeatures[0], FeatureExtraction.sr, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame, 128, 2048, false);
-        //Complex[][] stft = librosa.generateSTFTFeatures(originalAudioFeatures[0], FeatureExtraction.sr, FeatureExtraction.N_MFCC);
-        Complex[][] stft = librosa.generateSTFTFeaturesWithPadOption(originalAudioFeaturesFlat, FeatureExtraction.sr, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame, FeatureExtraction.M_Mels, FeatureExtraction.hop_length, false);
-
-
-        float[] stft_squared = new float[stft.length * stft[0].length];
-
-        System.out.println("STFT size: "+stft.length+", "+stft[0].length+", "+(stft.length * stft[0].length)+", "+stft[0][0]+", "+stft[0][stft[0].length-1]);
-
-        int size = 0;
-        
-        for (int i = 0; i < stft.length; i++) {
-            for (int j = 0; j < stft[i].length; j++) {
-                //System.out.println(stft[i][j]);
-
-                float squared_real = (float)(Math.pow(stft[i][j].getReal(), 2));
-
-                //System.out.println(squared_real);
-
-                
-                stft_squared[size] = squared_real;
-                //System.out.println("size ("+size+"):"+stft_squared[size]);
-                size++;
-                
-            }
         }
 
-        System.out.println("stft squared size: "+stft_squared.length+", "+stft_squared[0]);
 
-        //float[][] mel_spec = librosa.generateMelSpectroGram(stft_squared, FeatureExtraction.sr, FeatureExtraction.N_frame, 0, FeatureExtraction.hop_length);
-        double[][] mel_spec = librosa.generateMelSpectroGram(stft_squared);
-
-        size = 0;
-
-        for (int k = 0; k < mel_spec.length; k++) {
-            for (int l = 0; l < mel_spec[k].length; l++) {
-                //System.out.print(mel_spec[k][l]+"; ");
-                size++;
-            }
-        }
-
-        System.out.println("Mel_spec_size: "+mel_spec.length+", "+mel_spec[0].length+" | "+mel_spec.length * mel_spec[0].length);
-
-        MFCC mel_spec_mfcc = new MFCC();
-
-        double[][] alt_spec = mel_spec_mfcc.melSpectrogram(convertFloatsToDoubles(stft_squared));
-
-        for (int i = 0; i < alt_spec.length; i++) {
-            for (int j = 0; j < alt_spec[i].length; j++) {
-                //System.out.print(alt_spec[i][j]+"; ");
-            }
-        }
-
-        System.out.println("Alt mel spec size: "+alt_spec.length+", "+alt_spec[0].length+" | "+alt_spec.length * alt_spec[0].length);
-
-        double[][] power_mels = powerToDb(mel_spec);
-        
-
-        //END stft stuff */
-
-        
-        //float[][] MFCC = librosa.generateMFCCFeatures(finalshape(power_mels), FeatureExtraction.sr, FeatureExtraction.N_MFCC);
-        //float[][] MFCC = librosa.generateMFCCFeatures(finalshape(power_mels), FeatureExtraction.sr, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame, 128, FeatureExtraction.hop_length);
-        //float[][] MFCC = librosa.generateMFCCFeatures(originalAudioFeatures[0], FeatureExtraction.sr, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame, 128, FeatureExtraction.hop_length);
-        //float[][] MFCC = librosa.generateMFCCFeatures(originalAudioFeatures[35], FeatureExtraction.sr, FeatureExtraction.N_MFCC);
-        float[][] MFCC = librosa.generateMFCCFeatures(originalAudioFeaturesFlat, FeatureExtraction.sr, FeatureExtraction.N_MFCC);
-
-
-        //MFCC mfcc_obj = new MFCC();
-        //double[][] MFCC = mfcc_obj.dctMfcc(convertFloatsToDoubles(stft_squared));
-
-        System.out.println("MFCC size: "+MFCC.length+", "+MFCC[0].length+" | "+(MFCC.length * MFCC[0].length));
-
-        /* for (int i = 0; i < MFCC.length; i++) {
-            for (int j = 0; j < MFCC[i].length; j++) {
-                System.out.print(MFCC[i][j]+"; ");
-            }
-        } */
-
-        //nur ersten frame
-        /* for (int i = 0; i < MFCC[0].length; i++) {
-            System.out.print(MFCC[0][i]+"; ");
-        } */
-
-
-        //  meanMFCCs from all audio combined
-        float[] meanMFCC = librosa.generateMeanMFCCFeatures(MFCC, FeatureExtraction.N_MFCC, FeatureExtraction.N_frame);
-
-        for (int i = 0; i < meanMFCC.length; i++) {
-            System.out.println(meanMFCC[i]);
-        }
-        
-        // extract features for every cough
-        MFCC framesFromMfcc = new MFCC();
-        float[][] originalAudioFeatures = FeatureExtraction.getAudioFeatures(new File(audio_file_path).listFiles());
-        double[][] frames = new double[originalAudioFeatures.length][];
-
-        for (float[] cough : originalAudioFeatures) {
-            frames = framesFromMfcc.yFrame(convertFloatsToDoubles(cough));
-            
-            float[][] MFCC_mc = librosa.generateMFCCFeatures(cough, FeatureExtraction.sr, FeatureExtraction.N_MFCC);
-
-            //float diff = MFCC_mc[0][2] - meanMFCC[0];
-            //System.out.println("["+MFCC_mc[0][2]+", "+meanMFCC[0]+", "+diff+"]");
-            //break;
-
-            //debug
-            float[][] MFCC_mc_res = matrixSubtract(MFCC_mc, meanMFCC);
-            for (int i = 0; i < MFCC_mc_res.length; i++) {
-                System.out.println("\n--------"+i+"--------");
-                for (int j = 0; j < MFCC_mc_res[i].length; j++) {
-                    System.out.print("["+j+"] "+MFCC_mc_res[i][j]+", ");
-                }
-            }
-
-            float[] MFCC_D_res = FeatureExtraction.delta_smooth(MFCC_mc_res[0], 0, MFCC_mc_res[0].length, 1);
-            for (int i = 0; i < MFCC_D_res.length; i++) {
-                System.out.println(MFCC_D_res[i]);
-            }
-
-            break;
-
-            /* System.out.println(MFCC_mc.length);
-            System.out.println(MFCC_mc[0].length); */
-
-        }
-
-        
-        /* //debug
-        frames = framesFromMfcc.yFrame(convertFloatsToDoubles(originalAudioFeatures[0]));
-        System.out.println(frames.length);
-        System.out.println(frames[0].length);
-        for (int i = 0; i < frames[0].length; i++) {
-            System.out.println(frames[0][i]);
-        } */
-        
-
-        //end testing
     }
 
-    private static float[][] matrixSubtract(float[][] mfcc, float[] meanMfccs){
-        float[][] results = new float[mfcc.length][mfcc[0].length];
+    private static float[][] matrixSubtract(float[][] source, float[] substract){
+        float[][] results = new float[source.length][source[0].length];
 
-        for (int i = 0; i < mfcc.length; i++) {
-            for (int j = 0; j < mfcc[i].length; j++) {
-                /* System.out.println(i+"_"+j);
-                System.out.println(mfcc[i][j]);
-                System.out.println(meanMfccs[i]); */
-                results[i][j] = (mfcc[i][j] - meanMfccs[i]);
+        for (int i = 0; i < source.length; i++) {
+            for (int j = 0; j < source[i].length; j++) {
+                results[i][j] = (source[i][j] - substract[i]);
             }
         }
 
         return results;
     }
 
-    //from: https://github.com/chiachunfu/speech/blob/master/speechandroid/src/org/tensorflow/demo/mfcc/MFCC.java
-    private static double[][] powerToDb(double[][] melS){
-		//Convert a power spectrogram (amplitude squared) to decibel (dB) units
-	  //  This computes the scaling ``10 * log10(S / ref)`` in a numerically
-	  //  stable way.
-		double[][] log_spec = new double[melS.length][melS[0].length];
-		double maxValue = -100;
-		for (int i = 0; i < melS.length; i++){
-			for (int j = 0; j < melS[0].length; j++){
-				double magnitude = Math.abs(melS[i][j]);
-				if (magnitude > 1e-10){
-					//log_spec[i][j]=10.0*log10(magnitude);
-                    log_spec[i][j]=10.0*Math.log10(magnitude);
-				}else{
-					log_spec[i][j]=10.0*(-10);
-				}
-				if (log_spec[i][j] > maxValue){
-					maxValue = log_spec[i][j];
-				}
-			}
-		}
-
-		//set top_db to 80.0
-		for (int i = 0; i < melS.length; i++){
-			for (int j = 0; j < melS[0].length; j++){
-				if (log_spec[i][j] < maxValue - 80.0){
-					log_spec[i][j] = maxValue - 80.0;
-				}
-			}
-		}
-		//ref is disabled, maybe later.
-		return log_spec;
-	}
-
-    private static float[] finalshape(double[][] mfccSpecTro){
-		float[] finalMfcc = new float[mfccSpecTro[0].length * mfccSpecTro.length];
-		int k = 0;
-		for (int i = 0; i < mfccSpecTro[0].length; i++){
-			for (int j = 0; j < mfccSpecTro.length; j++){
-				finalMfcc[k] = (float) mfccSpecTro[j][i];
-				k = k+1;
-			}
-		}
-		return finalMfcc;
-	}
-
     public static double[][] convertFloatsToDoubles2D(float[][] input){
         if (input == null)
         {
             return null; // Or throw an exception - your choice
         }
-        //int size = input.length * input[0].length;
         double[][] output = new double[input.length][input[0].length];
         for (int i = 0; i < input.length; i++)
         {
