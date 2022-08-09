@@ -3,7 +3,6 @@ package javagradlecage;
 import tech.tablesaw.api.Table;
 import tech.tablesaw.columns.numbers.fillers.DoubleRangeIterable;
 import tech.tablesaw.conversion.TableConverter;
-import tech.tablesaw.table.Relation;
 import tech.tablesaw.api.DoubleColumn;
 
 import java.io.IOException;
@@ -15,6 +14,7 @@ import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.commons.math3.linear.SingularValueDecomposition;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
 
 import com.jlibrosa.audio.JLibrosa;
 import com.jlibrosa.audio.exception.FileFormatNotSupportedException;
@@ -32,61 +32,93 @@ public class SGCoeffTest {
         int sample_rate = 48000;
         int N_MFCC = 26;
 
+        //parameters for frame
+        int n_fft = 2048;
+        int hop_length = 2048;
+
         //get original audio features
         JLibrosa librosa = new JLibrosa();
         float[] original_features = librosa.loadAndRead(cough_sample, sample_rate, -1);
+
+        //debug
+        //System.out.println("1. "+original_features[0]+", last: "+original_features[original_features.length-1]);
 
         //get mfcc
         float[][] librosa_mfcc = librosa.generateMFCCFeatures(original_features, sample_rate, N_MFCC);
         Table mfcc = convertMatrixToTable("mfcc", convertFloatsToDoubles2D(librosa_mfcc));
 
-        System.out.println(mfcc.print());
-        System.out.println(mfcc.shape());
-        //System.out.println(mfcc.column(0).print());
-
         //get MFCC delta and delta-delta features
         Table mfcc_delta = delta(mfcc, mfcc.columnCount(), 1, -1);
         Table mfcc_delta_delta = delta(mfcc, mfcc.columnCount(), 2, -1);
 
-        System.out.println(mfcc_delta.print());
-        System.out.println(mfcc_delta.shape());
-        System.out.println(mfcc_delta_delta.print());
-        System.out.println(mfcc_delta_delta.shape());
-        //System.out.println(renameColums(mfcc_delta.transpose()).print());
-        //System.out.println(renameColums(mfcc_delta_delta).print());
-
+        //stack mfcc, mfcc_delta, mfcc_delta_delta
         Table mfcc_vec = renameColums(mfcc.transpose());
         mfcc_vec.setName("mfcc_delta_stack");
         mfcc_vec.concat(renameColums(mfcc_delta.transpose()));
         mfcc_vec.concat(renameColums(mfcc_delta_delta.transpose()));
         mfcc_vec = mfcc_vec.transpose();
         renameColums(mfcc_vec);
-        //mfcc_vec.addColumns(mfcc.columnArray());
-        //mfcc_vec.addColumns(mfcc_delta.columnArray());
-        //mfcc_vec.addColumns(mfcc_delta_delta.columnArray());
 
-        //renameColums(mfcc);
-        //renameColums(mfcc_delta);
-        //renameColums(mfcc_delta_delta);
-
-        //mfcc_vec.concat(mfcc);
-        //mfcc.concat(mfcc_delta);
-        //mfcc.concat(mfcc_delta_delta);
-        
-        //System.out.println(mfcc_delta.print());
-
+        //debug
         System.out.println(mfcc_vec.shape());
         System.out.println(mfcc_vec.print());
         System.out.println(mfcc_vec.column(0).size());
         System.out.println(mfcc_vec.column(0).print());
-        //System.out.println(mfcc.column(26).print());
+
+        /*
+         * get frames from cough audio file
+         */
+
+        //get frames from original audio features
+        double[][] d_frames = frames(convertFloatsToDoubles(original_features), n_fft, hop_length);
+        Table frames = convertMatrixToTable("frames", d_frames);
+
+        //prepare frames for applying hamming window
+        frames = frames.transpose();
+        TableConverter conv_frames = new TableConverter(frames);
+        d_frames = conv_frames.doubleMatrix(); 
+
+        //create hamming window for frame size
+        double[] hamming = hammingWindow(frames.columnCount());
+
+        /*
+         * loop over every frame and:
+         * 
+         * - apply hamming window
+         * - get zero crossing rate
+         * - get kurtosis
+         * - get LogEnergy
+         */
+
+        for (int i = 0; i < d_frames.length; i++) {
+            //apply hamming window to frames
+            RealVector vector_a = new ArrayRealVector(hamming);
+            RealVector vector_b = new ArrayRealVector(d_frames[i]);
+            RealVector result = vector_a.ebeMultiply(vector_b);
+            double[] d_result = result.toArray();
+
+            //debug applied hamming window
+            System.out.println("Window "+i+": 1. "+d_result[0]+", last ("+d_result.length+"): "+d_result[d_result.length-1]);
+
+            double zcr = zero_crossing_rate(sample_rate, d_frames[i]);
+            double logE = logEnergy(d_frames[i]);
+            
+            Kurtosis kurtosis = new Kurtosis();
+            kurtosis.setData(d_frames[i]);
+            double kurt = kurtosis.evaluate();
+
+            System.out.println(zcr);
+            System.out.println(logE);
+            System.out.println(kurt);           //  --> doesn't fit madhus data
+        }
+
     }
 
     /*
      * rename columns:
      * 
      * after transposing a table the column names are lost and set to 0 ... n. 
-     * This prevents concating two transposed tables b/c the colnames are redundant.
+     * This prevents the issue concating two transposed tables b/c the colnames are redundant.
      * 
      * This function just renames the columns of the given table to the provided "col_names"
      * with increment suffix. e.g. col_0, ..., col_n 
@@ -208,7 +240,7 @@ public class SGCoeffTest {
         order = order.transpose();
 
         Table A = Table.create();
-        A = matrix_exp(x_column, order_column);
+        A = matrixPower(x_column, order_column);
 
         Table y = Table.create();
         Double[] y_column = new Double[polyorder + 1]; 
@@ -341,26 +373,49 @@ public class SGCoeffTest {
         return results;
     }
 
-    public static Table matrix_exp(DoubleColumn base, DoubleColumn exponent){
+    public static Table matrixPower(DoubleColumn base, DoubleColumn power){ // ---> vectorPower ...
 
         Table computed_matrix = Table.create();
 
-        Double[][] exp_matrix = new Double[base.size()][exponent.size()];
+        Double[][] exp_matrix = new Double[base.size()][power.size()];
 
         for(int i = 0; i < base.size(); i++){
-            for (int j = 0; j < exponent.size(); j++) {
-                Double exp = Math.pow(base.get(i), exponent.get(j));
+            for (int j = 0; j < power.size(); j++) {
+                Double exp = Math.pow(base.get(i), power.get(j));
                 exp_matrix[i][j] = exp;
             }
         }
 
         for (int i = 0; i < exp_matrix.length; i++) {
-            DoubleColumn a_column = DoubleColumn.create("col"+i, exp_matrix[i]);
+            DoubleColumn a_column = DoubleColumn.create("col_"+i, exp_matrix[i]);
             computed_matrix.addColumns(a_column);
         }
         
         return computed_matrix;
     }
+
+    /* public static Table vectorMultiplication(Table vector_a, Table vector_b){
+
+        Table computed_vector = Table.create();
+
+        Double[] multiplies_vector = new Double[vector_a.rowCount()];
+
+        TableConverter conv_vector_a = new TableConverter(vector_a);
+        double[][] d_vector_a = conv_vector_a.doubleMatrix();
+        TableConverter conv_vector_b = new TableConverter(vector_b);
+        double[][] d_vector_b = conv_vector_b.doubleMatrix();
+
+        for(int i = 0; i < d_vector_a.length; i++){
+            multiplies_vector[i] = d_vector_a[0][i] * d_vector_b[0][i];
+        }
+                                                                //weiter machen!
+        for (int i = 0; i < multiplies_vector.length; i++) {
+            DoubleColumn column = DoubleColumn.create("col_"+i, multiplies_vector[i]);
+            computed_vector.addColumns(column);
+        }
+        
+        return computed_vector;
+    } */
 
     public static Table reverse1dTable(Table table){
 
@@ -395,6 +450,87 @@ public class SGCoeffTest {
         }
 
         return d_factorial;
+    }
+
+    /*
+     * from MFCC.java
+     */
+    public static double[][] frames(double[] ypad, int n_fft, int hop_length){
+		final int n_frames = 1 + (ypad.length - n_fft) / hop_length;
+		double[][] winFrames = new double[n_fft][n_frames];
+		for (int i = 0; i < n_fft; i++){
+			for (int j = 0; j < n_frames; j++){
+				winFrames[i][j] = ypad[j*hop_length+i];
+			}
+		}
+		return winFrames;
+	}
+
+    public static double[] hannWindow(int n_fft){
+		//Return a Hann window for even n_fft.
+		//The Hann window is a taper formed by using a raised cosine or sine-squared
+		//with ends that touch zero.
+		double[] win = new double[n_fft];
+		for (int i = 0; i < n_fft; i++){
+			win[i] = 0.5 - 0.5 * Math.cos(2.0*Math.PI*i/n_fft);
+		}
+		return win;
+	}
+
+    public static double[] hammingWindow(int n_fft){
+		//Return a Hamming window for even n_fft.
+		double[] win = new double[n_fft];
+		for (int i = 0; i < n_fft; i++){
+			win[i] = 0.54 - 0.46 * Math.cos(2.0*Math.PI*i/(n_fft-1));
+		}
+		return win;
+	}
+
+    /*
+     * end MFCC.java
+     */
+
+    /*
+     * from https://github.com/gast-lib/gast-lib/blob/master/library/src/root/gast/audio/processing/ZeroCrossing.java
+     * 
+     * adapted to madhu data
+     */
+    public static double zero_crossing_rate(int sampleRate, double[] audioData)
+    {
+        int numSamples = audioData.length;
+        int numCrossing = 0;
+        for (int p = 0; p < numSamples-1; p++)
+        {
+            if ((audioData[p] > 0 && audioData[p + 1] <= 0) || 
+                (audioData[p] < 0 && audioData[p + 1] >= 0))
+            {
+                numCrossing++;
+            }
+        }
+
+        /* float numSecondsRecorded = (float)numSamples/(float)sampleRate;
+        float numCycles = numCrossing/2;
+        float frequency = numCycles/numSecondsRecorded; */
+        double frequency = 1 + numCrossing / (double)numSamples-1;
+
+        return frequency;
+    }
+
+    /*
+     * translated to java from madhu python
+     */
+    public static double logEnergy(double[] audio){
+
+        double eps = 0.0001;
+        double N = audio.length;
+
+        RealVector audio_vector = new ArrayRealVector(audio);
+        RealVector energy_vector = audio_vector.ebeMultiply(audio_vector);
+        double[] energy = energy_vector.toArray();
+
+        double logE = 10 * Math.log10(eps + Arrays.stream(energy).sum() / N);
+
+        return logE;
     }
 
 }
