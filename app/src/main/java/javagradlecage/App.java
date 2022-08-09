@@ -37,45 +37,6 @@ public class App {
 
     }
 
-    private static float[][] matrixSubtract(float[][] source, float[] substract){
-        float[][] results = new float[source.length][source[0].length];
-
-        for (int i = 0; i < source.length; i++) {
-            for (int j = 0; j < source[i].length; j++) {
-                results[i][j] = (source[i][j] - substract[i]);
-            }
-        }
-
-        return results;
-    }
-
-    public static double[][] convertFloatsToDoubles2D(float[][] input){
-        if (input == null)
-        {
-            return null; // Or throw an exception - your choice
-        }
-        double[][] output = new double[input.length][input[0].length];
-        for (int i = 0; i < input.length; i++)
-        {
-            for (int j = 0; i < input.length; j++)
-            {
-                output[i][j] = input[i][j];
-            }
-        }
-        return output;
-    }
-
-    public static double[] convertFloatsToDoubles(float[] input){
-        if (input == null)
-        {
-            return null; // Or throw an exception - your choice
-        }
-        double[] output = new double[input.length];
-        for (int i = 0; i < input.length; i++)
-        {
-            output[i] = input[i];
-        }
-        return output;
-    }
+    
 
 }
