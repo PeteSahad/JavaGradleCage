@@ -60,10 +60,10 @@ public class SGCoeffTest {
         renameColums(mfcc_vec);
 
         //debug
-        System.out.println(mfcc_vec.shape());
+        /* System.out.println(mfcc_vec.shape());
         System.out.println(mfcc_vec.print());
         System.out.println(mfcc_vec.column(0).size());
-        System.out.println(mfcc_vec.column(0).print());
+        System.out.println(mfcc_vec.column(0).print()); */
 
         /*
          * get frames from cough audio file
@@ -90,6 +90,8 @@ public class SGCoeffTest {
          * - get LogEnergy
          */
 
+        Table vec = Table.create("vec");
+
         for (int i = 0; i < d_frames.length; i++) {
             //apply hamming window to frames
             RealVector vector_a = new ArrayRealVector(hamming);
@@ -98,19 +100,28 @@ public class SGCoeffTest {
             double[] d_result = result.toArray();
 
             //debug applied hamming window
-            System.out.println("Window "+i+": 1. "+d_result[0]+", last ("+d_result.length+"): "+d_result[d_result.length-1]);
+            //System.out.println("Window "+i+": 1. "+d_result[0]+", last ("+d_result.length+"): "+d_result[d_result.length-1]);
 
+            //zero crossing rate
             double zcr = zero_crossing_rate(sample_rate, d_frames[i]);
+            
+            //log energy
             double logE = logEnergy(d_frames[i]);
             
+            //kurtosis
             Kurtosis kurtosis = new Kurtosis();
             kurtosis.setData(d_frames[i]);
             double kurt = kurtosis.evaluate();
 
-            System.out.println(zcr);
-            System.out.println(logE);
-            System.out.println(kurt);           //  --> doesn't fit madhus data
+            //build feature vector
+            double[] d_vec = {kurt, zcr, logE};
+
+            vec.addColumns(DoubleColumn.create("frame_"+i, d_vec));
+            
         }
+
+        //debug vec
+        System.out.println(vec.transpose().print());
 
     }
 
