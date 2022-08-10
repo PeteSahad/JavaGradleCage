@@ -3,40 +3,135 @@
  */
 package javagradlecage;
 
-import tech.tablesaw.api.DoubleColumn;
-import tech.tablesaw.api.Row;
-import tech.tablesaw.api.StringColumn;
 import tech.tablesaw.api.Table;
+import tech.tablesaw.conversion.TableConverter;
+import tech.tablesaw.api.DoubleColumn;
+
+import org.apache.commons.math3.linear.ArrayRealVector;
+import org.apache.commons.math3.linear.RealVector;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
+
+import com.jlibrosa.audio.JLibrosa;
 
 public class App {
 
-    static Integer N_MFCC = 26;
-
     public static void main(String[] args) throws Exception {
 
-        String audio_file_path = "data/audio_test/Wu0427";
+        /*
+         * IMPORTANT NOTE:
+         * 
+         * the mean mfcc can't be substracted from the single cough, b/c in the 
+         * app context there is propably only one cough.
+         * 
+         * However, this can be later implemented when there are multiple samples
+         * recorded from one user.
+         */
 
-        // Create DataFrame
-        String[] col_names = {"Bin_No","Cough_No","Win_No","ZCR","Kurtosis","LogE"};
-        StringColumn feat_colNames = StringColumn.create("feat_colNames", col_names);
+        //input audio file
+        String cough_sample = "data/audio_test/Wu0427/cough_0.wav";
+        
+        //extraction parameters
+        int sample_rate = 48000;
+        int N_MFCC = 26;
 
-        for (int i = 1; i < N_MFCC+1; i++) {
-            feat_colNames.append("MFCC_"+i);
-        }
-        for (int i = 1; i < N_MFCC+1; i++) {
-            feat_colNames.append("MFCC_D_"+i);
-        }
-        for (int i = 1; i < N_MFCC+1; i++) {
-            feat_colNames.append("MFCC_2D_"+i);
+        //parameters for frame
+        int n_fft = 2048;
+        int hop_length = 2048;
+
+        //get original audio features
+        JLibrosa librosa = new JLibrosa();
+        float[] original_features = librosa.loadAndRead(cough_sample, sample_rate, -1);
+
+        //get mfcc
+        float[][] librosa_mfcc = librosa.generateMFCCFeatures(original_features, sample_rate, N_MFCC);
+        Table mfcc = FeatureExtraction.convertMatrixToTable("mfcc", FeatureExtraction.convertFloatsToDoubles2D(librosa_mfcc));
+
+        //get MFCC delta and delta-delta features
+        Table mfcc_delta = FeatureExtraction.delta(mfcc, mfcc.columnCount(), 1, -1);
+        Table mfcc_delta_delta = FeatureExtraction.delta(mfcc, mfcc.columnCount(), 2, -1);
+
+        //stack mfcc, mfcc_delta, mfcc_delta_delta
+        Table mfcc_vec = FeatureExtraction.renameColums(mfcc.transpose());
+        mfcc_vec.setName("mfcc_delta_stack");
+        mfcc_vec.concat(FeatureExtraction.renameColums(mfcc_delta.transpose()));
+        mfcc_vec.concat(FeatureExtraction.renameColums(mfcc_delta_delta.transpose()));
+        mfcc_vec = mfcc_vec.transpose();
+        FeatureExtraction.renameColums(mfcc_vec);
+
+        /*
+         * get frames from cough audio file
+         */
+
+        //get frames from original audio features
+        double[][] d_frames = FeatureExtraction.frames(FeatureExtraction.convertFloatsToDoubles(original_features), n_fft, hop_length);
+        Table frames = FeatureExtraction.convertMatrixToTable("frames", d_frames);
+
+        //prepare frames for applying hamming window
+        frames = frames.transpose();
+        TableConverter conv_frames = new TableConverter(frames);
+        d_frames = conv_frames.doubleMatrix(); 
+
+        //create hamming window for frame size
+        double[] hamming = FeatureExtraction.hammingWindow(frames.columnCount());
+
+        /*
+         * loop over every frame and:
+         * 
+         * - apply hamming window
+         * - get zero crossing rate
+         * - get kurtosis
+         * - get LogEnergy
+         */
+
+        Table vec = Table.create("vec");
+
+        for (int i = 0; i < d_frames.length; i++) {
+            //apply hamming window to frames
+            RealVector vector_a = new ArrayRealVector(hamming);
+            RealVector vector_b = new ArrayRealVector(d_frames[i]);
+            RealVector result = vector_a.ebeMultiply(vector_b);
+            double[] d_result = result.toArray();
+
+            //zero crossing rate
+            double zcr = FeatureExtraction.zero_crossing_rate(sample_rate, d_result);
+            
+            //log energy
+            double logE = FeatureExtraction.logEnergy(d_result);
+            
+            //kurtosis
+            Kurtosis kurtosis = new Kurtosis();
+            kurtosis.setData(d_result);
+            double kurt = kurtosis.evaluate();
+
+            //build feature vector
+            double[] d_vec = {kurt, zcr, logE};
+
+            vec.addColumns(DoubleColumn.create("frame_"+i, d_vec));
+
         }
 
-        for (String string : feat_colNames) {
-            System.out.println(string);
+        vec = vec.transpose();
+
+        //adding the mfcc of each frame [0 ... 12] to the features --> I don't understand this part! Why only the first 12 mfcc_delta_stack values!?
+        Table mfcc_vec_slice = mfcc_vec.transpose().inRange(0, vec.rowCount());
+
+        FeatureExtraction.renameColums(mfcc_vec_slice);
+        FeatureExtraction.renameColums(vec);
+        vec.concat(mfcc_vec_slice);
+
+        //average over frames to create one single feature vector for the single cough audio file
+        Table df = Table.create("cough features");
+
+        for (int i = 0; i < vec.columnCount(); i++) {
+            DoubleColumn col = (DoubleColumn)vec.column(i);
+            double avg = col.sum()/vec.rowCount();
+            df.addColumns(DoubleColumn.create(col.name()+"_"+i, avg));
         }
 
+        df = df.transpose();
+
+        System.out.println(df);
 
     }
-
-    
 
 }
