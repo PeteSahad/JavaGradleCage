@@ -103,14 +103,14 @@ public class SGCoeffTest {
             //System.out.println("Window "+i+": 1. "+d_result[0]+", last ("+d_result.length+"): "+d_result[d_result.length-1]);
 
             //zero crossing rate
-            double zcr = zero_crossing_rate(sample_rate, d_frames[i]);
+            double zcr = zero_crossing_rate(sample_rate, d_result);
             
             //log energy
-            double logE = logEnergy(d_frames[i]);
+            double logE = logEnergy(d_result);
             
             //kurtosis
             Kurtosis kurtosis = new Kurtosis();
-            kurtosis.setData(d_frames[i]);
+            kurtosis.setData(d_result);
             double kurt = kurtosis.evaluate();
 
             //build feature vector
@@ -404,29 +404,6 @@ public class SGCoeffTest {
         
         return computed_matrix;
     }
-
-    /* public static Table vectorMultiplication(Table vector_a, Table vector_b){
-
-        Table computed_vector = Table.create();
-
-        Double[] multiplies_vector = new Double[vector_a.rowCount()];
-
-        TableConverter conv_vector_a = new TableConverter(vector_a);
-        double[][] d_vector_a = conv_vector_a.doubleMatrix();
-        TableConverter conv_vector_b = new TableConverter(vector_b);
-        double[][] d_vector_b = conv_vector_b.doubleMatrix();
-
-        for(int i = 0; i < d_vector_a.length; i++){
-            multiplies_vector[i] = d_vector_a[0][i] * d_vector_b[0][i];
-        }
-                                                                //weiter machen!
-        for (int i = 0; i < multiplies_vector.length; i++) {
-            DoubleColumn column = DoubleColumn.create("col_"+i, multiplies_vector[i]);
-            computed_vector.addColumns(column);
-        }
-        
-        return computed_vector;
-    } */
 
     public static Table reverse1dTable(Table table){
 
