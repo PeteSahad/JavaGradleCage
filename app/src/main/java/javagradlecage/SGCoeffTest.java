@@ -25,6 +25,16 @@ import com.github.psambit9791.jdsp.signal.Convolution;
 public class SGCoeffTest {
     public static void main(String args[]) throws IOException, WavFileException, FileFormatNotSupportedException{
 
+        /*
+         * IMPORTANT NOTE:
+         * 
+         * the mean mfcc can't be substracted from the single cough, b/c in the 
+         * app context there is propably only one cough.
+         * 
+         * However, this can be later implemented when there are multiple samples
+         * recorded from one user.
+         */
+
         //input audio file
         String cough_sample = "data/audio_test/Wu0427/cough_0.wav";
         
@@ -39,9 +49,6 @@ public class SGCoeffTest {
         //get original audio features
         JLibrosa librosa = new JLibrosa();
         float[] original_features = librosa.loadAndRead(cough_sample, sample_rate, -1);
-
-        //debug
-        //System.out.println("1. "+original_features[0]+", last: "+original_features[original_features.length-1]);
 
         //get mfcc
         float[][] librosa_mfcc = librosa.generateMFCCFeatures(original_features, sample_rate, N_MFCC);
@@ -58,12 +65,6 @@ public class SGCoeffTest {
         mfcc_vec.concat(renameColums(mfcc_delta_delta.transpose()));
         mfcc_vec = mfcc_vec.transpose();
         renameColums(mfcc_vec);
-
-        //debug
-        /* System.out.println(mfcc_vec.shape());
-        System.out.println(mfcc_vec.print());
-        System.out.println(mfcc_vec.column(0).size());
-        System.out.println(mfcc_vec.column(0).print()); */
 
         /*
          * get frames from cough audio file
@@ -99,9 +100,6 @@ public class SGCoeffTest {
             RealVector result = vector_a.ebeMultiply(vector_b);
             double[] d_result = result.toArray();
 
-            //debug applied hamming window
-            //System.out.println("Window "+i+": 1. "+d_result[0]+", last ("+d_result.length+"): "+d_result[d_result.length-1]);
-
             //zero crossing rate
             double zcr = zero_crossing_rate(sample_rate, d_result);
             
@@ -117,12 +115,30 @@ public class SGCoeffTest {
             double[] d_vec = {kurt, zcr, logE};
 
             vec.addColumns(DoubleColumn.create("frame_"+i, d_vec));
-            
+
         }
 
-        //debug vec
-        System.out.println(vec.transpose().print());
+        vec = vec.transpose();
 
+        //adding the mfcc of each frame [0 ... 12] to the features --> I don't understand this part! Why only the first 12 mfcc_delta_stack values!?
+        Table mfcc_vec_slice = mfcc_vec.transpose().inRange(0, vec.rowCount());
+
+        renameColums(mfcc_vec_slice);
+        renameColums(vec);
+        vec.concat(mfcc_vec_slice);
+
+        //average over frames to create one single feature vector for the single cough audio file
+        Table df = Table.create("cough features");
+
+        for (int i = 0; i < vec.columnCount(); i++) {
+            DoubleColumn col = (DoubleColumn)vec.column(i);
+            double avg = col.sum()/vec.rowCount();
+            df.addColumns(DoubleColumn.create(col.name()+"_"+i, avg));
+        }
+
+        df = df.transpose();
+
+        System.out.println(df);
     }
 
     /*
